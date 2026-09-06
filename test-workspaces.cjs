@@ -1,0 +1,24 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+const html=fs.readFileSync('public/v3.html','utf8');
+function node(tag='div'){return {tag,value:'',textContent:'',disabled:false,hidden:false,children:[],classList:{toggle(){},add(){}},setAttribute(){},append(...n){this.children.push(...n)},replaceChildren(){this.children=[]},querySelector(t){return this.children.find(n=>n.tag===t)},focus(){}}}
+let approvals=true,prompts=0;const events={},nodes={};
+const context={document:{getElementById:id=>nodes[id]??=node(),createElement:node,createTextNode:t=>t},window:{print(){},addEventListener(n,fn){events[n]=fn},confirm(){prompts++;return approvals}},URL,Blob,setTimeout,AbortController};
+nodes.language=node();nodes.language.value='zh';nodes.role=node();nodes.role.value='buyer';nodes.engine=node();nodes.engine.value='demo';
+vm.createContext(context);vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);const run=s=>vm.runInContext(s,context);
+run('updateItem("P03","keep");state.selected=2;render()');const saved=run('state.report'),body=nodes.contract.value;
+assert(run('state.report.items.every(f=>["high","medium","low","unrated"].includes(f.risk))'));
+assert(run('reportText().includes("高风险")'));
+const countChips=nodes.categories.children[3].children[0].children;assert(countChips.some(c=>c.textContent.includes('风险')));
+run('setMode("compare");loadSample();updateItem("D01","reject")');const paired=run('state.report');const second=nodes.secondary.value;
+run('setMode("review")');assert.equal(run('state.report'),saved);assert.equal(nodes.contract.value,body);assert.equal(run('state.selected'),2);assert.equal(run('state.report.items[2].status'),'keep');
+run('setMode("compare")');assert.equal(run('state.report'),paired);assert.equal(nodes.secondary.value,second);assert.equal(run('state.report.items[0].status'),'reject');
+approvals=false;const old=nodes.contract.value;nodes.contract.value+='changed';nodes.contract.oninput();assert.equal(nodes.contract.value,old);assert.equal(run('state.report'),paired);assert(prompts>0);
+nodes.engine.value='ai';nodes.engine.onchange();assert.equal(nodes.engine.value,'demo');assert.equal(run('state.report'),paired);
+nodes.clear.onclick();assert.equal(nodes.contract.value,old);assert.equal(run('state.report'),paired);
+run('loadSample()');assert.equal(run('state.report'),paired);
+approvals=true;nodes.secondary.value+='approved';nodes.secondary.oninput();assert.equal(run('state.report'),null);
+run('setMode("review")');assert.equal(run('state.report'),saved);
+run('setMode("compare")');assert.equal(run('state.report'),null);assert(nodes.secondary.value.endsWith('approved'));
+let warned=false;events.beforeunload({preventDefault(){warned=true}});assert(warned);
+run('state.editing=true');approvals=false;run('setMode("review")');assert.equal(run('state.mode'),'compare');
+console.log('PASS: risk counts/exports; independent mode drafts, reports, status and selection; cancel restores input/settings; approved edit clears only active report; close warning and unsaved-editor guard.');
