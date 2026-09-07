@@ -1,3 +1,5 @@
+演示视频：https://www.bilibili.com/video/BV1dFbN6UEDz/?vd_source=332c1f04f446f84422d42690bd96e5c0
+
 # 合同审查助手 · Contract Review Assistant
 
 面向普通货物采购场景的中英文合同辅助审查原型，将条款分析、风险提示、修改建议与人工复核组织成一个可操作的工作流程。
