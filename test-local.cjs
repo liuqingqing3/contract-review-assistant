@@ -28,7 +28,7 @@ const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/st
  for(let i=1;i<20;i++){now+=11000;assert.equal((await request('/api/review',p)).status,200);}
  now+=11000;assert.equal((await request('/api/review',p)).status,429);assert.equal(calls,20);
  assert(!Array.from(files.values()).join('').includes('sk-test'));
- listeners.exit();boot();assert.equal((await request('/api/review',p)).status,503);
+ files.set('/test/.private/server.lock','legacy stale lock');boot();assert.equal((await request('/api/review',p)).status,503);
  await request('/api/config',{key:'sk-test-123456789'});now+=11000;
  assert.equal((await request('/api/review',p)).status,429);assert.equal(calls,20);
  console.log('PASS: loopback host, same-origin/CSRF, memory-only key, configuration without paid calls, consent, interval and persistent 20-attempt limit after restart. HTTP/files mocked.');

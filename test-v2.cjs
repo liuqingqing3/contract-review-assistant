@@ -7,6 +7,10 @@ assert.equal(evaluate('cats.length'),12);assert.equal(nodes.export.disabled,true
 assert.throws(()=>evaluate('createReport("review","",zhSample,"","")'));
 nodes.role.value='buyer';evaluate('run()');assert.equal(nodes.findingCount.textContent,11);
 const buyer=evaluate('state.report.items[2].impact[0]');nodes.role.value='seller';nodes.role.onchange();assert.equal(nodes.export.disabled,false);evaluate('run()');assert.notEqual(evaluate('state.report.items[2].impact[0]'),buyer);
+for(const cat of [2,3,4,5,6,8,9]){
+ assert(evaluate(`JSON.stringify(createReport('review','buyer',zhSample,'','').items.find(f=>f.cat===${cat}).direction)!==JSON.stringify(createReport('review','seller',zhSample,'','').items.find(f=>f.cat===${cat}).direction)`));
+ assert(evaluate(`createReport('review','buyer',zhSample,'','').items.find(f=>f.cat===${cat}).clause!==createReport('review','seller',zhSample,'','').items.find(f=>f.cat===${cat}).clause`));
+}
 evaluate('updateItem("P03","edited","我的测试修改<script>alert(1)</script>")');assert.equal(nodes.handledCount.textContent,1);assert(evaluate('reportText().includes("我的测试修改")'));
 nodes.language.value='en';nodes.language.onchange();assert.equal(evaluate('state.report.items[2].status'),'edited');assert(evaluate('reportText().includes("User edit record")'));assert.equal(evaluate('draft(state.report.items[2])'),evaluate('state.report.items[2].direction[1]'));
 nodes.language.value='zh';nodes.language.onchange();assert(evaluate('draft(state.report.items[2]).includes("我的测试修改")'));
@@ -94,7 +98,13 @@ const report=evaluate('reportText()');
 assert(!report.includes('原始建议'));
 assert(report.indexOf('需要确认')<report.indexOf('修改方向'));
 nodes.language.value='en';nodes.language.onchange();
-assert(nodes.categories.children[1].textContent.startsWith('1. '));
+assert(nodes.categories.children[1].textContent.startsWith('一、'));
+assert.equal(nodes.reportTitle.textContent,'审查工作台');
+assert(evaluate('reportText().startsWith("Contract Review Report")'));
+assert(!evaluate('reportText()').includes('Review workspace'));
+evaluate('preparePrint()');
+assert(nodes.printReport.children.some(n=>n.textContent?.startsWith('Proposed wording:')));
+assert(!nodes.printReport.children.some(n=>n.textContent?.includes('两个功能的材料')));
 assert(!evaluate('reportText()').includes('Original suggestion'));
 console.log('PASS: localized numbering, confirmation before approach, no duplicate original suggestion in report.');
 nodes.language.value='zh';evaluate('state.selected=-1; loadSample(); run()');
@@ -114,7 +124,7 @@ assert.deepEqual(buttonsFor('P01').map(n=>n.textContent),['撤销']);
 evaluate('updateItem("P01","pending");updateItem("P01","edited","测试修改")');
 assert.deepEqual(buttonsFor('P01').map(n=>n.textContent),['撤销']);
 nodes.language.value='en';nodes.language.onchange();
-assert.deepEqual(buttonsFor('P01').map(n=>n.textContent),['Undo']);
+assert.deepEqual(buttonsFor('P01').map(n=>n.textContent),['撤销']);
 console.log('PASS: inline note, action order, handled-only undo, and English undo.');
 evaluate('loadSample()');assert.equal(nodes.sampleNote.hidden,false);
 nodes.contract.value='自定义合同';nodes.contract.oninput();assert.equal(nodes.sampleNote.hidden,true);
@@ -135,7 +145,7 @@ if(process.env.TEST_HTML){(async()=>{
  await evaluate('run()');assert.equal(calls,0); // no consent
  nodes.consent.checked=true;await evaluate('run()');assert.equal(calls,1);assert.equal(evaluate('state.report'),null);assert(nodes.status.textContent.includes('不会用预设'));
  context.fetch=async()=>({ok:true,json:async()=>({report:evaluate('({...createReport("review","buyer",zhSample,"",""),items:createReport("review","buyer",zhSample,"","").items.map(f=>({...f,quotes:[],evidence:[]})),kind:"ai",coverage:[],limitations:["测试限制"],usage:null})'),remaining:18})});
- await evaluate('run()');assert.equal(evaluate('state.report.kind'),'ai');assert(evaluate('reportText()').includes('刘清清'));
+ await evaluate('run()');assert.equal(evaluate('state.report.kind'),'ai');assert(evaluate('reportText()').includes('Qingqing Liu'));
  nodes.language.value='en';nodes.language.onchange();assert.equal(evaluate('state.report'),null);
  let release;context.fetch=()=>new Promise(resolve=>{release=resolve});
  const pending=evaluate('run()');assert.equal(nodes.run.disabled,true);assert.equal(nodes.engine.disabled,true);

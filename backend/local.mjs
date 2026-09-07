@@ -6,11 +6,10 @@ import {randomBytes} from 'node:crypto';
 import {validateInput,review,ReviewError} from './review.mjs';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
 const runtime=join(root,'.private');mkdirSync(runtime,{recursive:true,mode:0o700});
-// Exclusive lock deliberately fails closed after a crash. Do not run several copies against one budget.
-const lock=join(runtime,'server.lock');
-let lockFd;try{lockFd=openSync(lock,'wx',0o600);}catch{console.error('已有服务运行，或上次异常退出。请先确认旧服务已停止，再处理 .private/server.lock。');process.exit(1);}
-const cleanup=()=>{try{closeSync(lockFd);unlinkSync(lock);}catch{}};
-process.on('exit',cleanup);for(const sig of ['SIGINT','SIGTERM'])process.on(sig,()=>process.exit(0));
+// The fixed, exclusive loopback port is the process lock. No stale disk lock
+// can block restart; a second process cannot serve requests or spend budget.
+// Existing .private/server.lock files are left untouched for compatibility.
+for(const sig of ['SIGINT','SIGTERM','SIGHUP'])process.on(sig,()=>process.exit(0));
 const ledger=join(runtime,'attempts.json');
 let attempts=0;if(existsSync(ledger)){try{attempts=JSON.parse(readFileSync(ledger,'utf8')).attempts;if(!Number.isInteger(attempts)||attempts<0)throw Error();}catch{console.error('次数记录异常，已停止以保护预算。');process.exit(1);}}
 let apiKey='',busy=false,lastAttempt=0;
@@ -46,4 +45,4 @@ const server=http.createServer(async(req,res)=>{
  }catch(e){return send(res,400,{error:e.message==='请求内容过大。'?e.message:'请求或本地记录处理失败，未继续调用模型。'});}
 });
 server.on('error',e=>{console.error(e.code==='EADDRINUSE'?'本地端口已被占用，请检查是否已打开另一份程序。':'本地服务未能启动（'+e.code+'），当前运行环境可能限制本地网络服务。');process.exit(1);});
-server.listen(port,'127.0.0.1',()=>console.log('合同审查助手已启动：'+origin+'\n密钥配置：'+origin+'/setup\n关闭此窗口将停止服务并清除内存中的密钥。'));
+server.listen({port,host:'127.0.0.1',exclusive:true},()=>console.log('合同审查助手 v0.3.7 已启动：'+origin+'\n请在浏览器打开上面的网址，不是直接打开 index.html。\n密钥配置：'+origin+'/setup\n关闭此窗口将停止服务并清除内存中的密钥。'));

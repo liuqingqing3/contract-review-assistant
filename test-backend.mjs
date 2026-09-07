@@ -39,3 +39,35 @@ delete out.items[0].riskReason;assert.equal(validateOutput(out,p).items[0].risk,
 out.items[0].risk='urgent';assert.throws(()=>validateOutput(out,p),/风险等级/);
 assert(messagesFor(p)[0].content.includes('不把所有缺失条款判高风险'));
 console.log('PASS: substantiated risk grade, invalid grade rejected, absent rationale conservatively unrated.');
+const invalidCases=[
+ ['ROOT_TYPE','report',()=>null],
+ ['SCOPE_VALUE','scope',()=>({...output(),scope:'supported 或 unsupported'})],
+ ['COVERAGE_MISSING','coverage',()=>({...output(),coverage:output().coverage.slice(0,1)})],
+ ['COVERAGE_DUPLICATE','coverage[1].cat',()=>{const x=output();x.coverage[1].cat=0;return x}],
+ ['COVERAGE_ROW','coverage[0]',()=>{const x=output();x.coverage[0]=null;return x}],
+ ['CATEGORY_VALUE','items[0].cat',()=>{const x=output();x.items[0].cat='2';return x}],
+ ['ITEM_OBJECT','items[0]',()=>({...output(),items:[null]})],
+ ['FIELD_EMPTY','items[0].confirm',()=>{const x=output();x.items[0].confirm='';return x}],
+ ['FIELD_TYPE','items[0].direction',()=>{const x=output();x.items[0].direction=[];return x}],
+ ['EVIDENCE_SOURCE','items[0].evidence[0].source',()=>{const x=output();x.items[0].evidence[0].source='second';return x}],
+ ['QUOTE_MISMATCH','items[0].evidence[0].quote',()=>{const x=output();x.items[0].evidence[0].quote='PRIVATE-INVENTED-QUOTE';return x}]
+];
+for(const [code,field,make] of invalidCases){let calls=0;
+ await assert.rejects(()=>review(p,'PRIVATE-KEY',async()=>{calls++;return {ok:true,json:async()=>({choices:[{finish_reason:'stop',message:{content:JSON.stringify(make())}}],usage})}}),e=>{
+  assert.equal(e.diagnostics.code,'VALIDATION_FAILED');assert.equal(e.diagnostics.validation.code,code);assert.equal(e.diagnostics.validation.field,field);
+  assert.equal(e.diagnostics.usage.output,8192);assert(!JSON.stringify(e.diagnostics).includes('PRIVATE-'));return true;
+ });assert.equal(calls,1);
+}
+const template=JSON.parse(messagesFor(p)[0].content.split('\n').find(line=>line.startsWith('{"scope"')));
+assert.equal(validateOutput(template,p).coverage.length,12);
+console.log('PASS: 11 precise validation cases, privacy-safe diagnostics, valid full-coverage prompt template, no retries.');
+for(const language of ['zh','en'])for(const status of ['not applicable','N/A','已检查','unknown',null,{},undefined]){
+ const x=output();x.coverage[7].status=status;
+ const before=JSON.stringify(x);let calls=0;
+ const result=await review({...p,language},'fake',async()=>{calls++;return {ok:true,json:async()=>({choices:[{finish_reason:'stop',message:{content:JSON.stringify(x)}}],usage})}});
+ assert.equal(calls,1);assert.equal(result.coverage[7].status,'insufficient');assert.equal(result.items.length,1);
+ assert(result.limitations[0].includes(language==='en'?'manual confirmation':'待人工确认'));
+ assert(result.coverage[7].note.includes(language==='en'?'unverified':'待复核'));assert.equal(JSON.stringify(x),before);
+ x.items[0].evidence[0].quote='invented quote';assert.throws(()=>validateOutput(x,p),/引文/);
+}
+console.log('PASS: unknown coverage status conservatively downgraded with visible ZH/EN warnings; quotes remain strictly checked; no extra requests.');

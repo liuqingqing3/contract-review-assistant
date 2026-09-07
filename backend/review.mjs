@@ -17,34 +17,68 @@ export function messagesFor(p) {
 模式 review：按用户 role（buyer 买方/seller 卖方）逐项检查下列全部12类，不为凑数捏造问题，不把对我方不利等同违法。免责条款、管辖、仲裁机构指向须标为待法律复核，不武断宣称有效无效。没有外部法规库，不编法条编号、判例或核验结果；涉及法律效力的内容注明需要核实。不得替用户编造日期、比例、机构或交易条件；拟修改条款用【待确认】占位。审查要区分商业风险、信息不足、法律问题。除非合同涉及相关内容，不机械添加知识产权或数据问题。
 类别编号0至11：${CATEGORIES.map((c,i)=>i+':'+c).join('；')}。
 模式 compare：仅比较两个语言版本的金额、数量、期限、责任、否定词、例外、遗漏、优先语言等实质差异；不假定中文或英文优先。两个文本来自不同合同或范围不支持时明确限制。少量节选仍可核对但不得声称完整。
-所有解释文字用 language 指定的语言。引文须逐字复制原材料，保持其原语言；proposedWording 用被修改合同的语言，双语模式可给双语。保持简洁，最多24项；合并同一根因的重复问题，优先列出重大且有依据的问题。篇幅目标：title不超过20个汉字或12个英文词；riskReason、impact、confirm、direction各不超过50个汉字或35个英文词；proposedWording不超过100个汉字或70个英文词；coverage.note不超过30个汉字或20个英文词。引文只摘录支持问题的必要连续原文，不改写。若不能充分覆盖材料或受事项数量限制，必须在limitations说明哪些部分仍待复核，不得声称已穷尽风险。
+所有解释文字用 language 指定的语言。引文须逐字复制原材料，保持其原语言；proposedWording 也用 language 指定的报告语言；如果与合同原语言不同，这只是拟修改意思的表达，实际签约文本须另行核对。保持简洁，最多24项；合并同一根因的重复问题，优先列出重大且有依据的问题。篇幅目标：title不超过20个汉字或12个英文词；riskReason、impact、confirm、direction各不超过50个汉字或35个英文词；proposedWording不超过100个汉字或70个英文词；coverage.note不超过30个汉字或20个英文词。引文只摘录支持问题的必要连续原文，不改写。若不能充分覆盖材料或受事项数量限制，必须在limitations说明哪些部分仍待复核，不得声称已穷尽风险。
 每项增加 risk 与 riskReason。risk 只能为 high、medium、low、unrated：high 是有原文支持的重大履约、资金或救济风险，可能严重影响核心交易目的；medium 是有实质影响但通常可通过补充或协商控制的风险；low 是影响较小的文本或操作瑕疵，不代表无需处理；unrated 是缺少关键材料或背景，无法可靠分级。riskReason 用报告语言简述根据和不确定性。按用户立场评估，双语核对按差异对金额、义务、救济的实质影响评估，不假定哪个版本有利。不把所有缺失条款判高风险、不把商业条件直接等同违法，也不将 high 视为法律效力结论。
 每项 evidence 为1至2个 {source:source|second|attachment,quote:逐字原文}，quote 不得为空。遗漏问题可以 evidence:[] 并写明未找到，不能伪造“原文”。双语遗漏仅引用实际存在的一边。
-必须返回以下结构（示意，不是固定结论）：{"scope":"supported 或 unsupported","limitations":["范围/材料限制"],"coverage":[{"cat":0,"status":"reviewed 或 not_applicable 或 insufficient","note":"检查范围和局限"}],"items":[{"cat":0,"type":"info 或 commercial 或 legal 或 difference","title":"标题","risk":"high 或 medium 或 low 或 unrated","riskReason":"分级理由","evidence":[{"source":"source","quote":"原文"}],"impact":"对所选立场的影响","confirm":"需要人工或业务确认","direction":"修改方向","proposedWording":"拟修改文本"}]}。
+字段规则：scope只填一个值 supported/unsupported；事项type只填一个值 info/commercial/legal/difference；risk只填一个值 high/medium/low/unrated。不要把斜杠或“或”写入值内。cat是数字0至11，不是字符串或类别名称。以下为合法结构模板，不是预设分析，所有解释和状态须根据本次材料填写：
+${JSON.stringify({scope:'supported',limitations:[],coverage:p.mode==='review'?CATEGORIES.map((name,cat)=>({cat,status:'insufficient',note:'请填写本类实际检查结果与局限'})):[],items:[{cat:0,type:'info',title:'请填写事项标题',risk:'unrated',riskReason:'请填写分级理由',evidence:[],impact:'请填写影响',confirm:'请填写需确认事项',direction:'请填写修改方向',proposedWording:'请填写拟修改文本或说明暂无法拟定的原因'}]})}
+coverage不是风险事项列表，review即使只发现一个问题，也必须有12类覆盖记录。不适用或材料不足时如实填写对应状态。每个事项都必须有title、impact、confirm、direction、proposedWording的非空文本；无法拟定时说明原因，不返回null或空串。evidence只接受指定来源和连续逐字原文，不拼接分散原文，不自行改变数字、标点或措辞。
 review 的 coverage 必须有0至11各一次；compare 的 coverage 必须是空数组。unsupported 的 items 必须为空。没有发现问题不代表没有风险。`;
  return [{role:'system',content:system},{role:'user',content:JSON.stringify(p)}];
 }
-function str(s,max=2500) { if(typeof s!=='string'||!s.trim()||s.length>max) throw Error('模型返回字段不完整，请人工复核后决定是否重试。'); return s; }
+
+export class ValidationIssue extends Error {
+ constructor(code,field,message){super(message);this.name='ValidationIssue';this.detail={code,field,message};}
+}
+function fail(code,field,message){throw new ValidationIssue(code,field,message)}
+function obj(v){return v!==null&&typeof v==='object'&&!Array.isArray(v)}
+function str(s,max=2500,field='text') {
+ if(typeof s!=='string')fail('FIELD_TYPE',field,'该字段必须是文本，不能是数组、对象或空值。');
+ if(!s.trim())fail('FIELD_EMPTY',field,'该必填字段为空；模型未提供对应内容。');
+ if(s.length>max)fail('FIELD_TOO_LONG',field,'该字段超过允许长度。');
+ return s;
+}
 export function validateOutput(raw,p) {
- if (!raw || !['supported','unsupported'].includes(raw.scope) || !Array.isArray(raw.items) || raw.items.length>24 || !Array.isArray(raw.limitations) || raw.limitations.length>12 || !Array.isArray(raw.coverage)) throw Error('模型结果格式不完整，本次未生成报告。');
- const limitations=raw.limitations.map(x=>str(x));
- if(raw.scope==='unsupported' && raw.items.length) throw Error('模型范围判断冲突，本次未生成报告。');
- const seen=new Set();
- const coverage=raw.coverage.map(c=>{if(!Number.isInteger(c.cat)||c.cat<0||c.cat>11||seen.has(c.cat)||!['reviewed','not_applicable','insufficient'].includes(c.status))throw Error('审查覆盖清单不完整。');seen.add(c.cat);return {cat:c.cat,status:c.status,note:str(c.note)};});
- if(p.mode==='review'&&coverage.length!==12||p.mode==='compare'&&coverage.length!==0)throw Error('审查覆盖清单不完整。');
+ if(!obj(raw))fail('ROOT_TYPE','report','报告必须是 JSON 对象。');
+ if(!['supported','unsupported'].includes(raw.scope))fail('SCOPE_VALUE','scope','范围值必须单独填写 supported 或 unsupported。');
+ if(!Array.isArray(raw.items)||raw.items.length>24)fail('ITEMS_ARRAY','items','事项必须是数组，且不超过24项。');
+ if(!Array.isArray(raw.limitations)||raw.limitations.length>12)fail('LIMITATIONS_ARRAY','limitations','范围限制必须是数组，且不超过12条。');
+ if(!Array.isArray(raw.coverage))fail('COVERAGE_ARRAY','coverage','缺少审查覆盖清单数组。');
+ const limitations=raw.limitations.map((x,i)=>str(x,2500,'limitations['+i+']'));
+ if(raw.scope==='unsupported'&&raw.items.length)fail('SCOPE_CONFLICT','items','报告声称不支持该范围，却同时返回审查事项。');
+ const seen=new Set(),uncertainCoverage=[];
+ const coverage=raw.coverage.map((c,i)=>{
+  const base='coverage['+i+']';
+  if(!obj(c))fail('COVERAGE_ROW',base,'覆盖清单中的一项不是对象。');
+  if(!Number.isInteger(c.cat)||c.cat<0||c.cat>11)fail('CATEGORY_VALUE',base+'.cat','类别必须是0至11的整数，不是中文名称或1至12编号。');
+  if(seen.has(c.cat))fail('COVERAGE_DUPLICATE',base+'.cat','覆盖清单重复列出了同一类别。');
+  const validStatus=['reviewed','not_applicable','insufficient'].includes(c.status);
+  const note=str(c.note,2500,base+'.note');
+  if(!validStatus)uncertainCoverage.push(c.cat);
+  seen.add(c.cat);return {cat:c.cat,status:validStatus?c.status:'insufficient',note:validStatus?note:(p.language==='en'?'Manual confirmation required: the model returned an unrecognized coverage status. The following model note is unverified: ':'待人工确认：模型覆盖状态无法识别，不能据此确认已完成审查。以下为待复核的模型说明：')+note};
+ });
+ if(p.mode==='review'&&coverage.length!==12)fail('COVERAGE_MISSING','coverage','审查覆盖清单不完整：应包含12类，实际返回'+coverage.length+'类。');
+ if(p.mode==='compare'&&coverage.length!==0)fail('COVERAGE_UNEXPECTED','coverage','双语核对的 coverage 应为空数组。');
+ if(uncertainCoverage.length)limitations.unshift(p.language==='en'?'Coverage status could not be confirmed for '+uncertainCoverage.length+' categories. They are marked for manual confirmation, not as reviewed.':'有'+uncertainCoverage.length+'类的模型覆盖状态无法确认，已标为待人工确认，不视为已完成审查。');
  const items=raw.items.map((f,i)=>{
-  if(!Number.isInteger(f.cat)||f.cat<0||f.cat>11||!['info','commercial','legal','difference'].includes(f.type)||!Array.isArray(f.evidence)||f.evidence.length>2)throw Error('模型事项结构无效。');
-  const evidence=f.evidence.map(e=>{
-   if(!['source',...(p.mode==='compare'?['second']:['attachment'])].includes(e.source)||typeof p[e.source]!=='string')throw Error('引文来源无效。');
-   const quote=str(e.quote,5000),at=p[e.source].indexOf(quote);
-   if(at<0)throw Error('模型引文与合同原文不一致，已拦截本次报告；不会显示无法核对的引文。');
+  const base='items['+i+']';
+  if(!obj(f))fail('ITEM_OBJECT',base,'审查事项不是对象。');
+  if(!Number.isInteger(f.cat)||f.cat<0||f.cat>11)fail('CATEGORY_VALUE',base+'.cat','事项类别必须是0至11的整数。');
+  if(!['info','commercial','legal','difference'].includes(f.type))fail('ITEM_TYPE',base+'.type','事项类型必须是 info、commercial、legal、difference 之一。');
+  if(!Array.isArray(f.evidence)||f.evidence.length>2)fail('EVIDENCE_ARRAY',base+'.evidence','引文应为数组，最多两条；遗漏条款应填写空数组。');
+  const evidence=f.evidence.map((e,j)=>{
+   const ep=base+'.evidence['+j+']';
+   if(!obj(e))fail('EVIDENCE_OBJECT',ep,'引文不是对象。');
+   if(!['source',...(p.mode==='compare'?['second']:['attachment'])].includes(e.source)||typeof p[e.source]!=='string')fail('EVIDENCE_SOURCE',ep+'.source','引文来源与当前模式不符，应使用规定的来源名称。');
+   const quote=str(e.quote,5000,ep+'.quote'),at=p[e.source].indexOf(quote);
+   if(at<0)fail('QUOTE_MISMATCH',ep+'.quote','第'+(i+1)+'个事项的第'+(j+1)+'条引文无法在指定原文中逐字找到，可能被改写或来自错误来源。');
    return {source:e.source,quote,start:at,end:at+quote.length};
   });
-  const pair=x=>[str(x),str(x)];
-  if(f.risk!==undefined&&!['high','medium','low','unrated'].includes(f.risk))throw Error('风险等级格式无效。');
+  const pair=(x,field,max=2500)=>{const value=str(x,max,base+'.'+field);return [value,value]};
+  if(f.risk!==undefined&&!['high','medium','low','unrated'].includes(f.risk))fail('RISK_VALUE',base+'.risk','风险等级格式无效，须为 high、medium、low、unrated 之一。');
   const hasRisk=f.risk&&typeof f.riskReason==='string'&&f.riskReason.trim();
-  const risk=hasRisk?f.risk:'unrated',riskReason=hasRisk?str(f.riskReason):p.language==='en'?'No substantiated risk rating returned; manual assessment required.':'未返回有理由支持的风险等级，需人工评估。';
-  return {id:'A'+String(i+1).padStart(2,'0'),cat:f.cat,type:f.type,risk,riskReason:pair(riskReason),title:pair(f.title),quotes:evidence.map(e=>e.quote),evidence,location:'',impact:pair(f.impact),confirm:pair(f.confirm),direction:pair(f.direction),clause:str(f.proposedWording,5000),status:'pending',edits:{},reason:''};
+  const risk=hasRisk?f.risk:'unrated',riskReason=hasRisk?str(f.riskReason,2500,base+'.riskReason'):p.language==='en'?'No substantiated risk rating returned; manual assessment required.':'未返回有理由支持的风险等级，需人工评估。';
+  return {id:'A'+String(i+1).padStart(2,'0'),cat:f.cat,type:f.type,risk,riskReason:[riskReason,riskReason],title:pair(f.title,'title'),quotes:evidence.map(e=>e.quote),evidence,location:'',impact:pair(f.impact,'impact'),confirm:pair(f.confirm,'confirm'),direction:pair(f.direction,'direction'),clause:str(f.proposedWording,5000,base+'.proposedWording'),status:'pending',edits:{},reason:''};
  });
  return {kind:'ai',model:MODEL,mode:p.mode,role:p.role,source:p.source,second:p.second,attachment:p.attachment,language:p.language,items,coverage,limitations,scope:raw.scope,time:new Date().toLocaleString('zh-CN')};
 }
@@ -80,7 +114,7 @@ export async function review(p,key,fetcher=fetch) {
  }
  if(typeof choice?.message?.content!=='string'||!choice.message.content.trim())throw new ReviewError('EMPTY_OUTPUT','模型没有返回报告正文，本次未生成报告。',diagnostic);
  let raw;try{raw=JSON.parse(choice.message.content);}catch{throw new ReviewError('INVALID_JSON','模型未返回完整 JSON，本次未生成报告。',diagnostic);}
- let report;try{report=validateOutput(raw,p);}catch(e){throw new ReviewError('VALIDATION_FAILED','模型结果未通过结构或原文核对，本次报告已拦截；不能据此作出审查结论。',diagnostic);}
+ let report;try{report=validateOutput(raw,p);}catch(e){const validation=e instanceof ValidationIssue?e.detail:{code:'VALIDATOR_INTERNAL',field:'report',message:'校验过程出现未识别错误。'};throw new ReviewError('VALIDATION_FAILED','报告已拦截：'+validation.message+' 请保留错误详情，不要连续重试。',{...diagnostic,validation});}
  report.usage=usage;
  report.elapsedMs=Date.now()-started;
  return report;
